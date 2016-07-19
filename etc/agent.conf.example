@@ -1,0 +1,19 @@
+{
+    "nodId": "1001",
+    "srvInfo": {
+        "linkType": "short",
+        "srvPort": 8001,
+        "sndPacket": "tcp",
+        "srvAddr": "127.0.0.1"
+    },
+    "monItems": [
+        {
+            "execProg": "onecheck",
+            "monType": "0011",
+            "monTrigger": "interval",
+            "execArgs": [null],
+            "execPrio": 5,
+            "trigInter": 3
+        }
+    ]
+}

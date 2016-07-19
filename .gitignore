@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.conf
+*.log
+*.swp
+todo*
+tags
+docs/_build/
