@@ -31,7 +31,7 @@ class BaseAgent(object):
 
     供调用者使用的方法：
 
-    - __init__(ext_module, config_file=None)
+    - __init__(ext_module, config_file)
     - run_forever()
 
     可以被覆盖的方法：
@@ -48,7 +48,7 @@ class BaseAgent(object):
     - delayfunc
     - scher
     """
-    def __init__(self, ext_module, config_file=None):
+    def __init__(self, ext_module, config_file):
         """构造器，可以扩展。
 
         重要的参数及变量：
@@ -59,8 +59,6 @@ class BaseAgent(object):
         - scher: 调度器，默认为sched.scheduler，可替换；
         """
         self.fname = config_file
-        if not self.fname:
-            self.fname = os.path.join('etc', 'agent.conf')
         self.load_conf(self.fname)
         self.ext = ext_module
         self.connection_init()

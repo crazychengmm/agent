@@ -68,7 +68,7 @@ class ExtTestMock:
 class TestBaseAgent(unittest.TestCase):
     def setUp(self):
         fd, self.fname = tempfile.mkstemp(text=True)
-        shutil.copyfile(os.path.join('etc', 'agent.conf.example'), self.fname)
+        shutil.copyfile(os.path.join('example', 'agent.conf.json'), self.fname)
         with open(fd) as fp:
             self.init_conf = json.load(fp)
 
@@ -76,15 +76,15 @@ class TestBaseAgent(unittest.TestCase):
         if os.path.exists(self.fname):
             os.remove(self.fname)
 
-    def make_agent(self, agtcls, ext_module, config_file):
+    def make_agent(self, agtcls, ext_module):
         class MyAgent(agtcls):
             def send_infor(self, pack):
                 return pack
 
-        return MyAgent(ext_module, config_file)
+        return MyAgent(ext_module, self.fname)
 
     def test_load_conf_success(self):
-        inst = self.make_agent(core.BaseAgent, None, self.fname)
+        inst = self.make_agent(core.BaseAgent, None)
         self.assertEqual(inst.conf.keys(), {'nodId', 'srvInfo', 'monItems'})
         self.assertEqual(inst.conf['srvInfo'].keys(),
                          {'linkType', 'srvPort', 'sndPacket', 'srvAddr'})
@@ -96,15 +96,10 @@ class TestBaseAgent(unittest.TestCase):
     def test_load_conf_file_not_exist(self):
         os.remove(self.fname)
         with self.assertRaises(FileNotFoundError):
-            self.make_agent(core.BaseAgent, None, self.fname)
-
-    @unittest.mock.patch('agent.core.BaseAgent.load_conf')
-    def test_load_conf_default_file(self, mock_conf):
-        inst = self.make_agent(core.BaseAgent, None, None)
-        inst.load_conf.assert_called_with(os.path.join('etc', 'agent.conf'))
+            self.make_agent(core.BaseAgent, None)
 
     def test_pack_infor_return_format(self):
-        inst = self.make_agent(core.BaseAgent, None, self.fname)
+        inst = self.make_agent(core.BaseAgent, None)
         infor = ('0011', [(1,), (2,)])
         packet = inst.pack_infor(*infor)
         ret_head = packet[:2]
@@ -115,21 +110,21 @@ class TestBaseAgent(unittest.TestCase):
 
     def test_all_task_reg_keyboard_interrupt_should_raise_out(self):
         ext = ExtTestMock(self.init_conf['monItems'][0], None)
-        inst = self.make_agent(core.BaseAgent, ext, self.fname)
+        inst = self.make_agent(core.BaseAgent, ext)
         inst.conf['monItems'][0]['execProg'] = 'raise_keyboard_interrupt'
         with self.assertRaises(KeyboardInterrupt):
             inst.all_task_reg()
 
     def test_all_task_reg_other_exceptions_should_be_catched(self):
         ext = ExtTestMock(self.init_conf['monItems'][0], None)
-        inst = self.make_agent(core.BaseAgent, ext, self.fname)
+        inst = self.make_agent(core.BaseAgent, ext)
         inst.conf['monItems'][0]['execProg'] = 'raise_base_exception'
         inst.all_task_reg()
 
     def test_run_forever_with_interval_task(self):
         reg_hist = []
         test_ext = ExtTestMock(self.init_conf['monItems'][0], reg_hist)
-        inst = self.make_agent(core.BaseAgent, test_ext, self.fname)
+        inst = self.make_agent(core.BaseAgent, test_ext)
         inst.conf['monItems'] = inst.conf['monItems'][:1]
         inst.conf['monItems'][0]['execArgs'] = inst.scher
         inst.conf['monItems'][0]['trigInter'] = interval = 0.5
