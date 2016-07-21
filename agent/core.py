@@ -202,7 +202,10 @@ class LongTCPMixIn(object):
 
 
 class UDPMixIn(object):
-    """处理UDP通信的MixIn类。"""
+    """处理UDP通信的MixIn类。
+    
+    由于数据包被分片会增大报文丢失的可能，UDP方式不允许传送长度超过1400的报文。
+    """
     def connection_init(self):
         """创建UDP socket。"""
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -215,6 +218,7 @@ class UDPMixIn(object):
     def send_infor(self, pack):
         """发送数据到Server端。"""
         try:
+            assert len(pack) < 1400, 'UDP pack should not longer than MTU.'
             self.sock.sendto(pack, self.srvinfo)
             self.logger.debug('send pack success: %s', pack)
         except socket.error as err:

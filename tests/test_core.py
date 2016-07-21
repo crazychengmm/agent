@@ -20,13 +20,14 @@ import unittest.mock
 from agent import core
 
 
-TEST_JSON = {
-              'type': 'test',
-              'length': 10,
-            }
+TEST_PACK = b'\x00\x1e{"type": "test", "length": 10}'
 
 
-END_JSON = {'cmd': 'close'}
+END_PACK = b'\x00\x10{"cmd": "close"}'
+
+
+def convert_head(head):
+    return int.from_bytes(head, 'big')
 
 
 class NullLog:
@@ -104,7 +105,7 @@ class TestBaseAgent(unittest.TestCase):
         packet = inst.pack_infor(*infor)
         ret_head = packet[:2]
         ret_dict = json.loads(packet[2:].decode())
-        self.assertEqual(int.from_bytes(ret_head, 'big'), len(packet) - 2)
+        self.assertEqual(convert_head(ret_head), len(packet) - 2)
         self.assertEqual(ret_dict['count'], len(infor[1]))
         self.assertEqual(ret_dict['nodId'], self.init_conf['nodId'])
 
@@ -145,7 +146,6 @@ class TestShortTCPMixIn(unittest.TestCase):
         self.mix_in.logger = NullLog()
         self.server_address = ('127.0.0.1', 8001)
         self.recv_count = 0
-        self.pack = json.dumps(TEST_JSON).encode()
 
     def make_server(self, server, test_pack):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -155,18 +155,19 @@ class TestShortTCPMixIn(unittest.TestCase):
         try:
             while True:
                 conn, client = sock.accept()
-                buf = conn.recv(2048)
+                length = convert_head(conn.recv(2))
+                buf = conn.recv(length)
                 conn.close()
                 if buf == b'{"cmd": "close"}':
                     break
                 self.recv_count += 1
-                self.assertEqual(buf, test_pack)
+                self.assertEqual(buf, test_pack[2:])
         finally:
             sock.close()
 
     def run_server(self):
         self.server = threading.Thread(target=self.make_server,
-                                       args=(self.server_address, self.pack))
+                                       args=(self.server_address, TEST_PACK))
         self.daemon = True
         self.server.start()
         # 保证server启动完成
@@ -176,14 +177,14 @@ class TestShortTCPMixIn(unittest.TestCase):
         pass
 
     def test_send_infor_send_only_once_when_server_invalid(self):
-        self.mix_in.send_infor(self.pack)
+        self.mix_in.send_infor(TEST_PACK)
         self.assertEqual(self.mix_in.logger.called, 1)
 
     def test_send_infor_reconnect_when_socket_error(self):
-        self.mix_in.send_infor(self.pack)
+        self.mix_in.send_infor(TEST_PACK)
         self.run_server()
-        self.mix_in.send_infor(self.pack)
-        self.mix_in.send_infor(json.dumps(END_JSON).encode())
+        self.mix_in.send_infor(TEST_PACK)
+        self.mix_in.send_infor(END_PACK)
         self.server.join()
         self.assertEqual(self.recv_count, 1)
 
@@ -198,7 +199,6 @@ class TestLongTCPMixIn(unittest.TestCase):
         self.mix_in.connection_init()
         self.mix_in.connection_close()
         self.recv_count = 0
-        self.pack = json.dumps(TEST_JSON).encode()
 
     def tearDown(self):
         self.mix_in.connection_close()
@@ -212,11 +212,12 @@ class TestLongTCPMixIn(unittest.TestCase):
             conn, client = sock.accept()
             try:
                 while True:
-                    buf = conn.recv(2048)
+                    length = convert_head(conn.recv(2))
+                    buf = conn.recv(length)
                     if buf == b'{"cmd": "close"}':
                         break
                     self.recv_count += 1
-                    self.assertEqual(buf, test_pack)
+                    self.assertEqual(buf, test_pack[2:])
             finally:
                 conn.close()
         finally:
@@ -224,7 +225,7 @@ class TestLongTCPMixIn(unittest.TestCase):
 
     def run_server(self):
         self.server = threading.Thread(target=self.make_server,
-                                       args=(self.server_address, self.pack))
+                                       args=(self.server_address, TEST_PACK))
         self.daemon = True
         self.server.start()
         # 保证server启动完成
@@ -232,16 +233,16 @@ class TestLongTCPMixIn(unittest.TestCase):
 
     def test_send_infor_send_once_and_reconnect_when_connection_invalid(self):
         self.assertEqual(self.mix_in.logger.called, 1)
-        self.mix_in.send_infor(self.pack)
+        self.mix_in.send_infor(TEST_PACK)
         self.assertEqual(self.mix_in.logger.called, 3)
 
     def test_send_infor_reconnect_when_socket_error(self):
-        self.mix_in.send_infor(self.pack)
+        self.mix_in.send_infor(TEST_PACK)
         self.run_server()
         # fail and reconnect
-        self.mix_in.send_infor(self.pack)
-        self.mix_in.send_infor(self.pack)
-        self.mix_in.send_infor(json.dumps(END_JSON).encode())
+        self.mix_in.send_infor(TEST_PACK)
+        self.mix_in.send_infor(TEST_PACK)
+        self.mix_in.send_infor(END_PACK)
         self.server.join()
         self.assertEqual(self.recv_count, 1)
 
@@ -255,7 +256,6 @@ class TestUDPMixIn(unittest.TestCase):
         self.server_address = ('127.0.0.1', 8001)
         self.mix_in.connection_init()
         self.recv_count = 0
-        self.pack = json.dumps(TEST_JSON).encode()
 
     def tearDown(self):
         self.mix_in.connection_close()
@@ -265,8 +265,8 @@ class TestUDPMixIn(unittest.TestCase):
         sock.bind(server)
         try:
             while True:
-                buf = sock.recv(2048)
-                if buf == b'{"cmd": "close"}':
+                buf = sock.recv(1500)
+                if buf == END_PACK:
                     break
                 self.recv_count += 1
                 self.assertEqual(buf, test_pack)
@@ -275,7 +275,7 @@ class TestUDPMixIn(unittest.TestCase):
 
     def run_server(self):
         self.server = threading.Thread(target=self.make_server,
-                                       args=(self.server_address, self.pack))
+                                       args=(self.server_address, TEST_PACK))
         self.daemon = True
         self.server.start()
         # 保证server启动完成
@@ -283,11 +283,18 @@ class TestUDPMixIn(unittest.TestCase):
 
     def test_send_infor_success_twice(self):
         self.run_server()
-        self.mix_in.send_infor(self.pack)
-        self.mix_in.send_infor(self.pack)
-        self.mix_in.send_infor(json.dumps(END_JSON).encode())
+        self.mix_in.send_infor(TEST_PACK)
+        self.mix_in.send_infor(TEST_PACK)
+        self.mix_in.send_infor(END_PACK)
         self.server.join()
         self.assertEqual(self.recv_count, 2)
+
+    def test_pack_longer_than_1400(self):
+        self.run_server()
+        with self.assertRaises(AssertionError):
+            self.mix_in.send_infor(TEST_PACK * 100)
+        self.mix_in.send_infor(END_PACK)
+        self.server.join()
 
 
 if __name__ == '__main__':
