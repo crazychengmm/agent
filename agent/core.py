@@ -26,12 +26,21 @@ import time
 from . import util
 
 
+class SimpleTimer:
+    """简单的计时器类，集成到Agent类中作为定时器使用。
+
+    本类的wait方法由Agent内的调度器调用，方法内部仅直接调用了time.sleep。
+    """
+    def wait(self, timeout):
+        return (time.sleep(timeout), None)
+
+
 class BaseAgent(object):
     """所有Agent类的基类。
 
     供调用者使用的方法：
 
-    - __init__(ext_module, config_file)
+    - __init__(ext_module, config_file, timer=SimpleTimer())
     - run_forever()
 
     可以被覆盖的方法：
@@ -45,10 +54,9 @@ class BaseAgent(object):
     可以被覆盖的属性：
 
     - log
-    - delayfunc
     - scher
     """
-    def __init__(self, ext_module, config_file):
+    def __init__(self, ext_module, config_file, timer=SimpleTimer()):
         """构造器，可以扩展。
 
         重要的参数及变量：
@@ -62,7 +70,7 @@ class BaseAgent(object):
         self.load_conf(self.fname)
         self.ext = ext_module
         self.connection_init()
-        self.delayfunc = time.sleep
+        self.timer = timer
         self.scher = sched.scheduler(time.time, self.delayfunc)
         self.logger = logging.getLogger(__name__)
 
@@ -120,6 +128,26 @@ class BaseAgent(object):
         """组合task执行及将数据发出的所有动作。"""
         self.send_infor(self.pack_infor(task['monType'],
                                         task['execProg'](task['execArgs'])))
+
+    def delayfunc(self, timeout):
+        ret_val, detail = self.timer.wait(timeout)
+        if ret_val is None:
+            return
+        try:
+            # 配置文件更新逻辑，如何实现还未确定
+            if ret_val == 'update':
+                pass
+            else:
+                mon_types = [i['monType'] for i in self.conf['monItems']]
+                if ret_val in mon_types:
+                    task = self.conf['monItems'][mon_types.index(ret_val)]
+                    self.scher.enterabs(time.time(), task['execPrio'],
+                                        self.taskwrapper, (task,))
+                    self.timer.response(is_ok=True)
+                else:
+                    raise AssertionError('invalid cmd')
+        except (AssertionError, OSError) as err:
+            self.timer.response(is_ok=False, detail=str(err))
 
     def run_forever(self):
         try:
@@ -237,3 +265,5 @@ class AgentLongTCP(LongTCPMixIn, BaseAgent):
 
 class AgentUDP(UDPMixIn, BaseAgent):
     pass
+
+

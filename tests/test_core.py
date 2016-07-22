@@ -59,7 +59,7 @@ class ExtTestMock:
         # 只能以KeyboardInterrupt中止run_forever
         raise KeyboardInterrupt
 
-    def raise_base_exception(self, args):
+    def raise_exception(self, args):
         raise Exception
 
     def raise_keyboard_interrupt(self, args):
@@ -99,6 +99,28 @@ class TestBaseAgent(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             self.make_agent(core.BaseAgent, None)
 
+    def test_delayfunc_wait_time(self):
+        inst = self.make_agent(core.BaseAgent, None)
+        start = time.time()
+        inst.delayfunc(0.2)
+        self.assertLess(abs(time.time() - start - 0.2), 0.001)
+
+    def test_received_cmd_is_function_in_ext_module(self):
+        pass
+
+    def test_received_cmd_is_update_config(self):
+        pass
+
+    def test_received_cmd_is_invalid(self):
+        pass
+
+    def test_received_cmd_is_None(self):
+        inst = self.make_agent(core.BaseAgent, None)
+        inst.scher.enterabs = unittest.mock.Mock()
+        inst.timer.wait = unittest.mock.Mock(return_value=(None, None))
+        inst.delayfunc(0.1)
+        inst.scher.enterabs.assert_not_called()
+
     def test_pack_infor_return_format(self):
         inst = self.make_agent(core.BaseAgent, None)
         infor = ('0011', [(1,), (2,)])
@@ -119,7 +141,7 @@ class TestBaseAgent(unittest.TestCase):
     def test_all_task_reg_other_exceptions_should_be_catched(self):
         ext = ExtTestMock(self.init_conf['monItems'][0], None)
         inst = self.make_agent(core.BaseAgent, ext)
-        inst.conf['monItems'][0]['execProg'] = 'raise_base_exception'
+        inst.conf['monItems'][0]['execProg'] = 'raise_exception'
         inst.all_task_reg()
 
     def test_run_forever_with_interval_task(self):
@@ -128,7 +150,7 @@ class TestBaseAgent(unittest.TestCase):
         inst = self.make_agent(core.BaseAgent, test_ext)
         inst.conf['monItems'] = inst.conf['monItems'][:1]
         inst.conf['monItems'][0]['execArgs'] = inst.scher
-        inst.conf['monItems'][0]['trigInter'] = interval = 0.5
+        inst.conf['monItems'][0]['trigInter'] = interval = 0.2
         try:
             inst.run_forever()
         except KeyboardInterrupt:
@@ -279,7 +301,7 @@ class TestUDPMixIn(unittest.TestCase):
         self.daemon = True
         self.server.start()
         # 保证server启动完成
-        time.sleep(0.1)
+        time.sleep(0.2)
 
     def test_send_infor_success_twice(self):
         self.run_server()
@@ -295,6 +317,15 @@ class TestUDPMixIn(unittest.TestCase):
             self.mix_in.send_infor(TEST_PACK * 100)
         self.mix_in.send_infor(END_PACK)
         self.server.join()
+
+
+class TestNullLisenter(unittest.TestCase):
+    def test_delayfunc_wait_time(self):
+        pass
+        #inst = self.make_agent(core.BaseAgent, None)
+        #start = time.time()
+        #inst.delayfunc(0.5)
+        #self.assertLess(abs(time.time() - start - 0.5), 0.001)
 
 
 if __name__ == '__main__':
