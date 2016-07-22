@@ -322,10 +322,10 @@ class TestUDPMixIn(unittest.TestCase):
 class TestNullLisenter(unittest.TestCase):
     def test_delayfunc_wait_time(self):
         pass
-        #inst = self.make_agent(core.BaseAgent, None)
-        #start = time.time()
-        #inst.delayfunc(0.5)
-        #self.assertLess(abs(time.time() - start - 0.5), 0.001)
+        # inst = self.make_agent(core.BaseAgent, None)
+        # start = time.time()
+        # inst.delayfunc(0.5)
+        # self.assertLess(abs(time.time() - start - 0.5), 0.001)
 
 
 if __name__ == '__main__':

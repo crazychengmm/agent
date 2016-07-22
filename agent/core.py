@@ -53,7 +53,6 @@ class BaseAgent(object):
 
     可以被覆盖的属性：
 
-    - log
     - scher
     """
     def __init__(self, ext_module, config_file, timer=SimpleTimer()):
@@ -231,7 +230,7 @@ class LongTCPMixIn(object):
 
 class UDPMixIn(object):
     """处理UDP通信的MixIn类。
-    
+
     由于数据包被分片会增大报文丢失的可能，UDP方式不允许传送长度超过1400的报文。
     """
     def connection_init(self):
@@ -265,5 +264,3 @@ class AgentLongTCP(LongTCPMixIn, BaseAgent):
 
 class AgentUDP(UDPMixIn, BaseAgent):
     pass
-
-
