@@ -105,21 +105,35 @@ class TestBaseAgent(unittest.TestCase):
         inst.delayfunc(0.2)
         self.assertLess(abs(time.time() - start - 0.2), 0.001)
 
-    def test_received_cmd_is_function_in_ext_module(self):
-        pass
-
     def test_received_cmd_is_update_config(self):
         pass
 
+    def test_received_cmd_is_function_in_ext_module(self):
+        inst = self.make_agent(core.BaseAgent, None)
+        with unittest.mock.patch.object(inst.timer, 'wait',
+                                        return_value=('0011', None)):
+            inst.timer.response = unittest.mock.Mock()
+            que1 = inst.scher.queue[:]
+            inst.delayfunc(5)
+            self.assertEqual(len(inst.scher.queue) - len(que1), 1)
+            task = inst.scher.queue[-1]
+            self.assertEqual(task.argument[0]['monType'], '0011')
+
     def test_received_cmd_is_invalid(self):
-        pass
+        inst = self.make_agent(core.BaseAgent, None)
+        with unittest.mock.patch.object(inst.timer, 'wait',
+                                        return_value=('invalid', None)):
+            with unittest.mock.patch.object(inst.timer, 'response') as mock:
+                inst.delayfunc(5)
+                mock.assert_called_with(is_ok=False, detail='invalid cmd')
 
     def test_received_cmd_is_None(self):
         inst = self.make_agent(core.BaseAgent, None)
         inst.scher.enterabs = unittest.mock.Mock()
-        inst.timer.wait = unittest.mock.Mock(return_value=(None, None))
-        inst.delayfunc(0.1)
-        inst.scher.enterabs.assert_not_called()
+        with unittest.mock.patch.object(inst.timer, 'wait',
+                                        return_value=(None, None)):
+            inst.delayfunc(5)
+            inst.scher.enterabs.assert_not_called()
 
     def test_pack_infor_return_format(self):
         inst = self.make_agent(core.BaseAgent, None)

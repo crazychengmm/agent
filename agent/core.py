@@ -141,7 +141,7 @@ class BaseAgent(object):
                 if ret_val in mon_types:
                     task = self.conf['monItems'][mon_types.index(ret_val)]
                     self.scher.enterabs(time.time(), task['execPrio'],
-                                        self.taskwrapper, (task,))
+                                        self.task_wrapper, (task,))
                     self.timer.response(is_ok=True)
                 else:
                     raise AssertionError('invalid cmd')
