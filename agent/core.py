@@ -26,12 +26,16 @@ import time
 from . import util
 
 
-class SimpleTimer:
-    """简单的计时器类，集成到Agent类中作为定时器使用。
+class SimpleDelayTrigger:
+    """简单的延时触发器，集成到Agent类中作为定时器使用。
 
-    本类的wait方法由Agent内的调度器调用，方法内部仅直接调用了time.sleep。
+    本类的wait方法将在Agent的delayfunc方法中调用。
     """
     def wait(self, timeout):
+        """wait方法退出条件只有一种：
+
+        - 执行time.sleep到了指定的时长（秒），返回值永远为(None, None)。
+        """
         return (time.sleep(timeout), None)
 
 
@@ -40,7 +44,7 @@ class BaseAgent(object):
 
     供调用者使用的方法：
 
-    - __init__(ext_module, config_file, timer=SimpleTimer())
+    - __init__(ext_module, config_file, timer=SimpleDelayTrigger())
     - run_forever()
 
     可以被覆盖的方法：
@@ -55,7 +59,7 @@ class BaseAgent(object):
 
     - scher
     """
-    def __init__(self, ext_module, config_file, timer=SimpleTimer()):
+    def __init__(self, ext_module, config_file, timer=SimpleDelayTrigger()):
         """构造器，可以扩展。
 
         重要的参数及变量：
