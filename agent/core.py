@@ -39,6 +39,53 @@ class SimpleDelayTrigger:
         return (time.sleep(timeout), None)
 
 
+class AcceptDelayTrigger:
+    """计时器类，集成到Agent类中作为定时器使用。
+
+    wait方法利用accept作为定时器，同时完成定时以及接收服务器以TCP短链接方式发
+    来指令的功能。
+    """
+    def __init__(self, host):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind(host)
+        self.sock.listen(1)
+        self.logger = logging.getLogger(__name__)
+
+    def wait(self, timeout):
+        """wait方法的退出条件有两种：
+
+        - accept超时，返回值为(None, None)；
+        - 收到新连接并接收到服务器的指令，返回值为(cmd, detail)；
+        """
+        # sched模块每个循环会执行一次delayfunc(0)以让出CPU
+        if timeout > 0:
+            self.logger.debug('set accept timeout to %ss', timeout)
+        self.sock.settimeout(timeout)
+        try:
+            self.conn, _ = self.sock.accept()
+            # 服务器发来的指令不应该太长
+            buf = conn.recv(1024)
+            self.logger.debug('recv cmd from server: %s', buf)
+            pack = json.loads(buf.decode())
+        except socket.error as err:
+            self.logger.debug('recv cmd error: %s', err)
+            # 将socket超时与其它socket错误都处理为直接返回无指令。
+            if hasattr(self, 'conn'):
+                self.conn.close()
+            return (None, None)
+        return (pack['cmd'], pack.get('detail', None))
+
+    def response(self, is_ok=True, detail=None):
+        buf = json.dumps(dict(is_ok=is_ok, detail=detail)).encode()
+        try:
+            self.conn.send(buf)
+        except socket.error as err:
+            self.logger.error('send response error: %s', err)
+        finally:
+            self.conn.close()
+
+
 class BaseAgent(object):
     """所有Agent类的基类。
 
@@ -133,9 +180,16 @@ class BaseAgent(object):
                                         task['execProg'](task['execArgs'])))
 
     def delayfunc(self, timeout):
-        ret_val, detail = self.timer.wait(timeout)
+        try:
+            ret_val, detail = self.timer.wait(timeout)
+        except Exception as err:
+            # 出问题可以将出错信息反馈到server以尽快纠正。
+            self.logger.error('wait error: %s', err)
+            self.timer.response(is_ok=False, detail=str(err))
+            return None
+
         if ret_val is None:
-            return
+            return None
         try:
             # 配置文件更新逻辑，如何实现还未确定
             if ret_val == 'update':

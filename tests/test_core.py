@@ -26,6 +26,9 @@ TEST_PACK = b'\x00\x1e{"type": "test", "length": 10}'
 END_PACK = b'\x00\x10{"cmd": "close"}'
 
 
+TEST_TIMER = False
+
+
 def convert_head(head):
     return int.from_bytes(head, 'big')
 
@@ -333,13 +336,38 @@ class TestUDPMixIn(unittest.TestCase):
         self.server.join()
 
 
-class TestNullLisenter(unittest.TestCase):
-    def test_delayfunc_wait_time(self):
-        pass
-        # inst = self.make_agent(core.BaseAgent, None)
-        # start = time.time()
-        # inst.delayfunc(0.5)
-        # self.assertLess(abs(time.time() - start - 0.5), 0.001)
+class TestAcceptDelayTrigger(unittest.TestCase):
+    def setUp(self):
+        self.inst = core.AcceptDelayTrigger(('127.0.0.1', 0))
+        self.inst.sock.close()
+        self.inst.sock = unittest.mock.Mock()
+
+    def test_wait_return_no_cmd_when_socket_timeout(self):
+        self.inst.sock.accept = unittest.mock.Mock(side_effect=socket.timeout)
+        self.assertEqual(self.inst.wait(10), (None, None))
+
+    def test_wait_return_no_cmd_when_socket_error(self):
+        self.inst.sock.accept = unittest.mock.Mock(side_effect=socket.error)
+        self.assertEqual(self.inst.wait(10), (None, None))
+
+    def test_wait_should_raise_exception_when_other_error(self):
+        self.inst.sock.accept = unittest.mock.Mock(side_effect=Exception)
+        with self.assertRaises(Exception):
+            self.inst.wait(10)
+
+    def test_wait_close_conn_when_socket_error(self):
+        self.inst.sock.accept = unittest.mock.Mock(side_effect=socket.error)
+        self.inst.conn = unittest.mock.Mock()
+        self.inst.conn.close = unittest.mock.Mock()
+        self.inst.wait(10)
+        self.inst.conn.close.assert_called_with()
+
+    @unittest.skipUnless(TEST_TIMER, 'trust socket timeout')
+    def test_wait_timeout(self):
+        inst = core.AcceptDelayTrigger(('127.0.0.1', 0))
+        start_time = time.time()
+        inst.wait(0.5)
+        self.assertLess(abs(time.time() - start_time - 0.5), 0.01)
 
 
 if __name__ == '__main__':
